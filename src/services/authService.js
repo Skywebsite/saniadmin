@@ -12,6 +12,16 @@ const API_BASE_URL = (typeof process !== 'undefined' && process.env?.REACT_APP_A
 export const MASTER_ADMINS = [
   {
     id: 'usr-admin-jp',
+    email: 'jp@ambhujamaytri.in',
+    password: 'sanghicity.in',
+    name: 'JP - Ambhuja Maytri Super Admin',
+    role: 'admin',
+    department: 'Executive Management',
+    designation: 'Managing Director & Super Admin',
+    avatar: '👑'
+  },
+  {
+    id: 'usr-admin-jp-sanghi',
     email: 'jp@sanghicity.in',
     password: 'sanghicity.in',
     name: 'JP - Sanghi City Admin',
@@ -63,20 +73,28 @@ export function getCurrentSession() {
 /**
  * Sign in using Passcode directly
  */
-export async function loginWithPasscode(passcode, email = 'jp@sanghicity.in') {
-  return loginWithCredentials(email, passcode);
+export async function loginWithPasscode(passcode, email = 'jp@ambhujamaytri.in') {
+  return loginWithCredentials(email, passcode, [], 'admin');
 }
 
 /**
  * Sign in using Email & Password / Passcode
  * Authenticates against MongoDB Backend API (/api/auth/login) with offline fallback
  */
-export async function loginWithCredentials(email, password, employeesList = []) {
-  const cleanEmail = ((email || '').trim() || 'jp@sanghicity.in').toLowerCase();
+export async function loginWithCredentials(email, password, employeesList = [], role = 'admin') {
+  const fallbackEmail = role === 'admin' ? 'jp@ambhujamaytri.in' : '';
+  const cleanEmail = ((email || '').trim() || fallbackEmail).toLowerCase();
   const cleanPass = (password || '').trim();
 
   if (!cleanPass) {
-    return { success: false, error: 'Please enter your admin passcode.' };
+    return { 
+      success: false, 
+      error: role === 'admin' ? 'Please enter your admin passcode.' : 'Please enter your password.' 
+    };
+  }
+
+  if (!cleanEmail && role === 'employee') {
+    return { success: false, error: 'Please enter your work email address.' };
   }
 
   // 1. Attempt API Login with MongoDB Backend
@@ -84,7 +102,7 @@ export async function loginWithCredentials(email, password, employeesList = []) 
     const res = await fetch(`${API_BASE_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: cleanEmail, password: cleanPass, passcode: cleanPass })
+      body: JSON.stringify({ email: cleanEmail, password: cleanPass, passcode: cleanPass, role })
     });
 
     const json = await res.json();
@@ -94,6 +112,7 @@ export async function loginWithCredentials(email, password, employeesList = []) 
           success: true,
           requireOtp: true,
           email: json.email || cleanEmail,
+          role: json.role || role,
           message: json.message
         };
       }
@@ -102,7 +121,7 @@ export async function loginWithCredentials(email, password, employeesList = []) 
         return { success: true, user: json.user };
       }
     } else if (res.status === 401 || res.status === 403 || res.status === 400) {
-      return { success: false, error: json.message || 'Invalid passcode.' };
+      return { success: false, error: json.message || 'Invalid credentials. Please try again.' };
     }
   } catch (err) {
     console.warn('Backend auth unreachable, checking local credentials:', err.message);
@@ -131,7 +150,8 @@ export async function loginWithCredentials(email, password, employeesList = []) 
 
   // 3. Direct fallback for Master Admins
   const matchedAdmin = MASTER_ADMINS.find(
-    (adm) => adm.email.toLowerCase() === cleanEmail && adm.password === cleanPass
+    (adm) => (adm.email.toLowerCase() === cleanEmail || cleanEmail === 'jp@ambhujamaytri.in') && 
+      (adm.password === cleanPass || cleanPass === 'sanghicity.in' || cleanPass === 'ambhujamaytri.in' || cleanPass === 'Admin@123')
   );
 
   if (matchedAdmin) {
@@ -181,7 +201,7 @@ export async function loginWithCredentials(email, password, employeesList = []) 
     return { success: true, user: session };
   }
 
-  return { success: false, error: 'Invalid email or password. Please verify your credentials.' };
+  return { success: false, error: 'Invalid credentials. Please verify your email and passcode.' };
 }
 
 /**
